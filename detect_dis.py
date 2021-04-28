@@ -11,7 +11,6 @@ from utils.general import check_img_size, check_requirements, non_max_suppressio
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device
 import numpy as np
-from utils.utils import plot_dots_on_people,distancing_all,distancing_Angle
 from decimal import Decimal
 def detects_img(pipe,hole_filling,colorizer):
     for x in range(100):
@@ -51,9 +50,9 @@ def detects_vidio(pipe,hole_filling,colorizer):
     return im0s,depth,colorized_depth
 
 def detect():
-    source, weights, view_img, imgsz,save_vidio,detect_image,detect_vidio,webcam,dist_thres_lim = opt.source, opt.weights, opt.view_img,\
+    source, weights, view_img, imgsz,save_vidio,detect_image,detect_vidio,webcam,dist_thres_lim,savevid_f = opt.source, opt.weights, opt.view_img,\
                                                                           opt.img_size,opt.save_vidio,opt.detect_img,opt.detect_vidio,\
-                                                                                                  opt.detect_webcam,opt.dist_thres_lim
+                                                                                                  opt.detect_webcam,opt.dist_thres_lim,opt.savevid_f
     set_logging()
     device = select_device(opt.device)
     half = device.type != 'cpu'  # half precision only supported on CUDA
@@ -97,7 +96,7 @@ def detect():
                 # Apply NMS
                 pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
 
-                all_coords = []
+                # all_coords = []
             # t3 = time.time()
             for _,det in enumerate(pred):
                 if len(det):
@@ -114,13 +113,13 @@ def detect():
                     len_x = np.cumsum(depth[int(y_mid), int(xyxy[0]):int(xyxy[2])])[-1] * 0.00165
                     len_y = np.cumsum(depth[int(xyxy[1]):int(xyxy[3]), int(x_mid)])[-1] * 0.00165
                     label1 = str(dist_temp) + "m" + str(int(len_x)) + "mm" + ',' + str(int(len_y)) + "mm"
-                    all_coords.append(xyxy)
+                    # all_coords.append(xyxy)
                     label = f'{names[int(cls)]} {conf:.2f}'
                     plot_one_box(xyxy, im0s, label=label, color=colors[int(cls)], line_thickness=3)
-                    plot_dots_on_people(xyxy, im0s)
+                    # plot_dots_on_people(xyxy, im0s)
                     plot_one_box(xyxy, colorized_depth, label=label1, color=colors[int(cls)],line_thickness=2)
+                    # distancing_all(all_coords, im0s,depth=depth,dist_thres_lim=dist_thres_lim)
 
-            distancing_all(all_coords, im0s,depth=depth,dist_thres_lim=dist_thres_lim)
             images = np.hstack((cv2.cvtColor(im0s, cv2.COLOR_RGB2BGR), cv2.cvtColor(colorized_depth, cv2.COLOR_RGB2BGR)))
             a+=1
             # if a %1 ==0:
@@ -136,21 +135,22 @@ def detect():
             if detect_image:
                 cv2.imwrite("out_img.png",images)
                 break
-            if  save_vidio:
-                if a!=600:
+            if save_vidio:
+            # if  save_vidio and a!=savevid_f:
+                if a!=savevid_f:
                     fps, w, h = 30, images.shape[1], images.shape[0]
                     # save_path += '.mp4'
                     if a==1:
-                        vid_writer = cv2.VideoWriter(save_vidio+"test.mp4", cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+                        vid_writer = cv2.VideoWriter("test.mp4", cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer.write(images)
                     # print("\r video [{}/{}] save path{} ".format(a,300,save_vidio),end="")
                 else:
-                    print(" Done,vidio save to{}, time{:.2f}".format(save_vidio,time.time()-start))
+                    print(" Done,vidio save to{}, time{:.2f}".format("./test.mp4",time.time()-start))
                     # vid_writer.release()
                     cv2.destroyAllWindows()
                     break
-                # t7 =time.time()
-                # print('cv2.waitKey()' + str(t7 - t6))
+            # t7 =time.time()
+            # print('cv2.waitKey()' + str(t7 - t6))
 
     finally:
         # pipe.stop()
@@ -160,19 +160,20 @@ if __name__ == '__main__':
     parser.add_argument('--weights', nargs='+', type=str, default='yolov5x.pt', help='model.pt path(s)')
     parser.add_argument('--source',default='20210422_134345.bag', type=str, help='source')  # file/folder
     parser.add_argument('--img-size', type=int, default=320, help='inference size (pixels)') #img size is 320 *n
-    parser.add_argument('--conf-thres', type=float, default=0.6, help='object confidence threshold')
-    parser.add_argument('--iou-thres', type=float, default=0.8, help='IOU threshold for NMS')
+    parser.add_argument('--conf-thres', type=float, default=0.5, help='object confidence threshold')
+    parser.add_argument('--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img',default=True, action='store_true', help='display results')
     parser.add_argument('--classes',nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--update', action='store_true', help='update all models')
-    parser.add_argument('--save_vidio', default=False, help='not save vidio')
+    parser.add_argument('--save_vidio', default=False, help='if default =False,not save vidio,else save vidio to "./test.mp4"')
     parser.add_argument('--detect_img', default=False, help='detect image')
     parser.add_argument('--detect_vidio', default=True, help="detect vidio")
     parser.add_argument('--detect_webcam', default=True, help="detect webcam")
-    parser.add_argument('--dist_thres_lim', default=(500,3000), help="safe distance")
+    parser.add_argument('--dist_thres_lim', default=(500,1000), help="safe distance")
+    parser.add_argument('--savevid_f', default=600, help="save vidio f")
 
     opt = parser.parse_args()
     print(opt)

@@ -925,6 +925,77 @@ def plot_dots_on_people(x, img):
     center = ((int(x[2])+int(x[0]))//2,(int(x[3])+int(x[1]))//2)
     radius = 10
     cv2.circle(img, center, radius, color, thickness)
+def distancing_Angle(all_coords, img,depth,dist_thres_lim=(20,30)):#
+    # Plot lines connecting people
+    already_red = dict()  # dictionary to store if a plotted rectangle has already been labelled as high risk
+    centers = []
+    for i in all_coords:
+        centers.append(((int(i[2]) + int(i[0])) // 2, (int(i[3]) + int(i[1])) // 2))
+    for j in centers:
+        already_red[j] = 0
+    x_combs = list(itertools.combinations(all_coords, 2))
+    radius = 10
+    thickness = 5
+    intr_l = np.array([[0.00164474, 0, -0.69736842], [0, 0.00164474, -0.39473684], [0, 0, 1]])
+    for x in x_combs:
+        xyxy1, xyxy2 = x[0], x[1]
+        cntr1 = ((int(xyxy1[2]) + int(xyxy1[0])) // 2, (int(xyxy1[3]) + int(xyxy1[1])) // 2)
+        cntr2 = ((int(xyxy2[2]) + int(xyxy2[0])) // 2, (int(xyxy2[3]) + int(xyxy2[1])) // 2)
+        len_x=np.absolute(cntr1[0]-cntr2[0])
+        len_y=np.absolute(cntr1[1]-cntr2[1])
+        deep_cntr1=depth[cntr1[1],cntr1[0]]
+        deep_cntr2=depth[cntr2[1],cntr2[0]]
+        Angle_x=(np.arccos(0.83)*180/np.pi)/848*len_x
+        Angle_y=(np.arccos(0.68)*180/np.pi)/848*len_y
+        Angle=(Angle_x**2+Angle_y**2)**0.5
+        dist=(deep_cntr1**2+deep_cntr2**2-2*deep_cntr1*deep_cntr2*np.cos(Angle*np.pi/180))**0.5
+        if dist > dist_thres_lim[0] and dist < dist_thres_lim[1]:
+            color = (0, 255, 255)
+            label = "Low Risk "
+            tl = round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1
+            cv2.line(img, cntr1, cntr2, color, thickness)
+            cv2.putText(img,str(int(dist)/10)+"cm",(int(cntr1[0]+cntr2[0])//2,int(cntr1[1]+cntr2[1])//2),tl//3,1,color=(0, 255, 255))
+            if already_red[cntr1] == 0:
+                cv2.circle(img, cntr1, radius, color, -1)
+            if already_red[cntr2] == 0:
+                cv2.circle(img, cntr2, radius, color, -1)
+            # Plots one bounding box on image img
+            tl = round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+            for xy in x:
+                cntr = ((int(xy[2]) + int(xy[0])) // 2, (int(xy[3]) + int(xy[1])) // 2)
+                if already_red[cntr] == 0:
+                    c1, c2 = (int(xy[0]), int(xy[1])), (int(xy[2]), int(xy[3]))
+                    tf = max(tl - 1, 1)  # font thickness
+                    t_size = cv2.getTextSize(label, 0, fontScale=tl // 3, thickness=tf)[0]
+                    c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
+                    cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
+                    cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)  # filled
+                    cv2.putText(img, label, (c1[0], c1[1] - 2), 0, tl // 3, [225, 255, 255], thickness=tf,
+                                lineType=cv2.LINE_AA)
+
+        elif dist < dist_thres_lim[0]:
+            color = (0, 0, 255)
+            label = "High Risk"
+            already_red[cntr1] = 1
+            already_red[cntr2] = 1
+            tl = round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+            cv2.line(img, cntr1, cntr2, color, thickness)
+            cv2.putText(img, str(int(dist)/10)+"cm", (int(cntr1[0] + cntr2[0]) // 2, int(cntr1[1] + cntr2[1]) // 2), tl // 3, 1,
+                        color=(0, 0, 255))
+            cv2.circle(img, cntr1, radius, color, -1)
+            cv2.circle(img, cntr2, radius, color, -1)
+            # Plots one bounding box on image img
+            tl = round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+            for xy in x:
+                c1, c2 = (int(xy[0]), int(xy[1])), (int(xy[2]), int(xy[3]))
+                tf = max(tl - 1, 1)  # font thickness
+                t_size = cv2.getTextSize(label, 0, fontScale=tl // 3, thickness=tf)[0]
+                c2 = c1[0] + t_size[0], c1[1] - t_size[1] - 3
+                cv2.rectangle(img, c1, c2, color, thickness=tl, lineType=cv2.LINE_AA)
+                cv2.rectangle(img, c1, c2, color, -1, cv2.LINE_AA)  # filled
+                cv2.putText(img, label, (c1[0], c1[1] - 2), 0, tl // 3, [225, 255, 255], thickness=tf,
+                            lineType=cv2.LINE_AA)
+
 def distancing_all(all_coords, img,depth,dist_thres_lim=(20,30)):
     # Plot lines connecting people
     already_red = dict()  # dictionary to store if a plotted rectangle has already been labelled as high risk
@@ -941,54 +1012,62 @@ def distancing_all(all_coords, img,depth,dist_thres_lim=(20,30)):
         xyxy1, xyxy2 = x[0], x[1]
         cntr1 = ((int(xyxy1[2]) + int(xyxy1[0])) // 2, (int(xyxy1[3]) + int(xyxy1[1])) // 2)
         cntr2 = ((int(xyxy2[2]) + int(xyxy2[0])) // 2, (int(xyxy2[3]) + int(xyxy2[1])) // 2)
-        if cntr2[0]>cntr1[0] and cntr2[1]>cntr1[1]:
-            len_min=depth[cntr1[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr1[1],1]))
-            len_max=depth[cntr2[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr2[1],1]))
-            len_x=len_max[0]-len_min[0]
-            len_y=len_max[1]-len_min[1]
-
-        if cntr2[0]>cntr1[0] and cntr2[1]==cntr1[1]:
-            len_min=depth[cntr1[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr1[1],1]))
-            len_max=depth[cntr2[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr2[1],1]))
-            len_x=len_max[0]-len_min[0]
-            len_y=0
-
-        if cntr2[0]>cntr1[0] and cntr2[1]<cntr1[1]: #x2>x1 ,y2<y1
-            len_min=depth[cntr2[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr2[1],1]))
-            len_max=depth[cntr1[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr1[1],1]))
-            len_x=len_max[0]-len_min[0]
-            len_y=len_max[1]-len_min[1]
-
-        if cntr2[0]>cntr1[0] and cntr2[1]==cntr1[1]: #x2>x1 ,y2<y1
-            len_min=depth[cntr2[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr2[1],1]))
-            len_max=depth[cntr1[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr1[1],1]))
-            len_x=len_max[0]-len_min[0]
-            len_y=0
-
-        if cntr2[0]<cntr1[0] and cntr2[1]>cntr1[1]: #x2<x1 y2>y1
-            len_min = depth[cntr1[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr1[1], 1]))
-            len_max = depth[cntr2[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr2[1], 1]))
-            len_x = len_max[0] - len_min[0]
-            len_y = len_max[1] - len_min[1]
-
-        if cntr2[0]==cntr1[0] and cntr2[1]>cntr1[1]: #x2<x1 y2>y1
-            len_min = depth[cntr1[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr1[1], 1]))
-            len_max = depth[cntr2[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr2[1], 1]))
-            len_x = 0
-            len_y = len_max[1] - len_min[1]
-
-        if cntr2[0]<cntr1[0] and cntr2[1]<cntr1[1]: #x1>x2,y1>y2
-            len_min = depth[cntr2[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr2[1], 1]))
-            len_max = depth[cntr1[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr1[1], 1]))
-            len_x = len_max[0] - len_min[0]
-            len_y = len_max[1] - len_min[1]
-
-        if cntr2[0]==cntr1[0] and cntr2[1]<cntr1[1]: #x1>x2,y1>y2
-            len_min = depth[cntr2[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr2[1], 1]))
-            len_max = depth[cntr1[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr1[1], 1]))
-            len_x = 0
-            len_y = len_max[1] - len_min[1]
-        dist=(len_x**2+len_y**2)**0.5
+        # cntr1=list(cntr1)
+        # cntr2=list(cntr2)
+        # if cntr1[0]==cntr2[0]:
+        #     cntr2[0]=cntr2[0]+1
+        # if cntr1[1]==cntr2[1]:
+        #     cntr2[1]=cntr2[1]+1
+        # if cntr2[0]>cntr1[0] and cntr2[1]>cntr1[1]:
+        #     len_min=depth[cntr1[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr1[1],1]))
+        #     len_max=depth[cntr2[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr2[1],1]))
+        #     # len_x=len_max[0]-len_min[0]
+        #     # len_y=len_max[1]-len_min[1]
+        # #
+        # # if cntr2[0]>cntr1[0] and cntr2[1]==cntr1[1]:
+        # #     len_min=depth[cntr1[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr1[1],1]))
+        # #     len_max=depth[cntr2[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr2[1],1]))
+        # #     # len_x=len_max[0]-len_min[0]
+        #     # len_y=0
+        #
+        # if cntr2[0]>cntr1[0] and cntr2[1]<cntr1[1]: #x2>x1 ,y2<y1
+        #     len_min=depth[cntr2[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr2[1],1]))
+        #     len_max=depth[cntr1[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr1[1],1]))
+        #     # len_x=len_max[0]-len_min[0]
+        #     # len_y=len_max[1]-len_min[1]
+        #
+        # # if cntr2[0]>cntr1[0] and cntr2[1]==cntr1[1]: #x2>x1 ,y2<y1
+        # #     len_min=depth[cntr2[1],cntr1[0]]*np.dot(intr_l,np.array([cntr1[0],cntr2[1],1]))
+        # #     len_max=depth[cntr1[1],cntr2[0]]*np.dot(intr_l,np.array([cntr2[0],cntr1[1],1]))
+        # #     # len_x=len_max[0]-len_min[0]
+        # #     # len_y=0
+        #
+        # if cntr2[0]<cntr1[0] and cntr2[1]>cntr1[1]: #x2<x1 y2>y1
+        #     len_min = depth[cntr1[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr1[1], 1]))
+        #     len_max = depth[cntr2[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr2[1], 1]))
+        #     # len_x = len_max[0] - len_min[0]
+        #     # len_y = len_max[1] - len_min[1]
+        #
+        # # if cntr2[0]==cntr1[0] and cntr2[1]>cntr1[1]: #x2<x1 y2>y1
+        # #     len_min = depth[cntr1[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr1[1], 1]))
+        # #     len_max = depth[cntr2[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr2[1], 1]))
+        # #     # len_x = 0
+        # #     # len_y = len_max[1] - len_min[1]
+        #
+        # if cntr2[0]<cntr1[0] and cntr2[1]<cntr1[1]: #x1>x2,y1>y2
+        #     len_min = depth[cntr2[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr2[1], 1]))
+        #     len_max = depth[cntr1[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr1[1], 1]))
+        #     # len_x = len_max[0] - len_min[0]
+        #     # len_y = len_max[1] - len_min[1]
+        # #
+        # # if cntr2[0]==cntr1[0] and cntr2[1]<cntr1[1]: #x1>x2,y1>y2
+        # #     len_min = depth[cntr2[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr2[1], 1]))
+        # #     len_max = depth[cntr1[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr1[1], 1]))
+        # #     # len_x = 0
+        # #     # len_y = len_max[1] - len_min[1]
+        len_min = depth[cntr2[1], cntr2[0]] * np.dot(intr_l, np.array([cntr2[0], cntr2[1], 1]))
+        len_max = depth[cntr1[1], cntr1[0]] * np.dot(intr_l, np.array([cntr1[0], cntr1[1], 1]))
+        dist=((len_min[0]-len_max[0])**2+(len_min[1]-len_max[1])**2+(len_min[1]-len_max[1])**2)**0.5
         if dist > dist_thres_lim[0] and dist < dist_thres_lim[1]:
             color = (0, 255, 255)
             label = "Low Risk "
